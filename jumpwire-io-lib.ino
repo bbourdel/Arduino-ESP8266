@@ -8,7 +8,7 @@
 //  For debugging
 //
 
-#define DEBUG_FLG 0 //1: Output debug log
+#define DEBUG_FLG 1 //1: Output debug log
                     //0: Don't output debug log (Fast)
 
 #if DEBUG_FLG //DEBUG_FLG: 1
@@ -127,7 +127,7 @@ void JumpwireIoLoop() {
 }
 
 void Throw(char key, float value){
-  String string ="42[\"b\",[\"";
+  String string ="42[\"f\",[\"";
   string += key;
   string += "\",";
   string += value;
@@ -249,10 +249,10 @@ void OnEventReceived(char *str, byte len) {
 
   //受信したイベントをパースして、コールバック関数を呼び出してあげる
 
-  //まずはイベントが ["b",[" かどうかをチェック
+  //まずはイベントが ["f",[" かどうかをチェック
   if ((str[0] == '[')
       && (str[1] == '"')
-      && (str[2] == 'b')
+      && (str[2] == 'f')
       && (str[3] == '"')
       && (str[4] == ',')
       && (str[5] == '[')
