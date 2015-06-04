@@ -1,2 +1,2 @@
-# Arduino-ESP8266
-jumpwire.io client framework
+# See http://docs.jumpwire.io/ for docs
+jumpwire.io client framework for Arduino-ESP8266
