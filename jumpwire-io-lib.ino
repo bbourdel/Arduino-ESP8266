@@ -106,7 +106,7 @@ void jumpwireIoSetup() {
   pingtimer = millis(); //reset ping timer
 }
 
-void JumpwireIoLoop() {
+void jumpwireIoLoop() {
   while (Serial.available()) {
     char a = ProcessReceivedCharacter();//文字列をチェック
   }
