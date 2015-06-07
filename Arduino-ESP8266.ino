@@ -18,7 +18,7 @@ void setup() {
 
 
 void loop() {
-  JumpwireIoLoop(); //always put this code in loop()
+  jumpwireIoLoop(); //always put this code in loop()
   //put your code here
   
 }
