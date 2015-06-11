@@ -81,7 +81,7 @@
 #define WS_SERVER         "socket.jumpwire.io"
 #define WS_PORT           "80"
 #define WS_PATH           "/socket.io/?transport=websocket"
-#define jumpwire_io_node  "__Arduino-ESP8266"
+#define jumpwire_io_node  "__AE0.0.1"
 #define PING_INTERVAL     55000 //socket.ioへpingを送る間隔ミリ秒数
 #define MAX_MESSAGE_SIZE  100   //処理するメッセージの最大サイズ(MAX254)
 #define WAITING_TIMEOUT   10000 //ESPの応答を待つミリ秒数
