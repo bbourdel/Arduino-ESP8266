@@ -12,18 +12,18 @@
                     //0: Don't output debug log (Fast)
 
 #if DEBUG_FLG //DEBUG_FLG: 1
-  
+  #define DEBUG_BUF_LEN 50
   #include <SoftwareSerial.h>
   SoftwareSerial debugSerial(10, 11); // RX, TX
-  char debug_buf[50];
+  char debug_buf[DEBUG_BUF_LEN];
   
   void initDebugSerial(){
     debugSerial.begin(9600);
     int i = 0;
-    for(i=0;i<49;i++){
+    for(i=0;i<DEBUG_BUF_LEN-1;i++){
       debug_buf[i] = ' ';
     }
-    debug_buf[49] = 0;
+    debug_buf[DEBUG_BUF_LEN-1] = 0;
   }
   
   void printDebugLog(char *DebugLog){
@@ -43,10 +43,10 @@
   
   void putDebug_buf(char letter){
     int i = 0;
-    for(i=0;i<49;i++){
+    for(i=0;i<DEBUG_BUF_LEN-1;i++){
       debug_buf[i] = debug_buf[i+1];
     }
-    debug_buf[49] = letter;
+    debug_buf[DEBUG_BUF_LEN-1] = letter;
   }
 
 #else  //DEBUG_FLG: 0
@@ -81,6 +81,7 @@
 #define WS_SERVER         "socket.jumpwire.io"
 #define WS_PORT           "80"
 #define WS_PATH           "/socket.io/?transport=websocket"
+#define jumpwire_io_node  "__Arduino-ESP8266"
 #define PING_INTERVAL     55000 //socket.ioへpingを送る間隔ミリ秒数
 #define MAX_MESSAGE_SIZE  100   //処理するメッセージの最大サイズ(MAX254)
 #define WAITING_TIMEOUT   10000 //ESPの応答を待つミリ秒数
@@ -103,7 +104,7 @@ void jumpwireIoSetup() {
   randomSeed(analogRead(Analog_Unused_pin)); //for websocket mask
   Serial.begin(your_ESP8266_baud_rate);
   WebSocketConnect();
-  pingtimer = millis(); //reset ping timer
+  //pingtimer = millis(); //reset ping timer
 }
 
 void jumpwireIoLoop() {
@@ -111,10 +112,11 @@ void jumpwireIoLoop() {
     char a = ProcessReceivedCharacter();//文字列をチェック
   }
   if (millis() > pingtimer + PING_INTERVAL) {  
-        //受信待ち状態でタイマーが起動した場合の対策
-        MessageReceivingMode = 0;//モード0に戻る
-        MessageSize = 0; //メッセージサイズをリセット
-        MessageCursor = 0;//メッセージカーソルをリセット   
+    //受信待ち状態でタイマーが起動した場合の対策
+    printDebugLog("Sending ping...");
+    MessageReceivingMode = 0;//モード0に戻る
+    MessageSize = 0; //メッセージサイズをリセット
+    MessageCursor = 0;//メッセージカーソルをリセット   
     WebSocketSendText("2"); //socket.ioのPing (Websocket的にはテキスト)
     pingtimer = millis(); //タスク終了時刻をセット
   }
@@ -127,7 +129,17 @@ void jumpwireIoLoop() {
 }
 
 void Throw(char key, float value){
-  String string ="42[\"f\",[\"";
+  String string = "";
+  string += "Throw key: ";
+  string += key;
+  string += " value: ";
+  string += value;
+  char buf2[string.length()+1];
+  string.toCharArray(buf2,string.length()+1);
+  printDebugLog(buf2);  
+  
+  
+  string ="42[\"f\",[\"";
   string += key;
   string += "\",";
   string += value;
@@ -136,14 +148,7 @@ void Throw(char key, float value){
   string.toCharArray(buf,string.length()+1);
   WebSocketSendText(buf);
   
-  string = "";
-  string += "Throw key: ";
-  string += key;
-  string += " value: ";
-  string += value;
-  char buf2[string.length()+1];
-  string.toCharArray(buf2,string.length()+1);
-  printDebugLog(buf2);  
+
 }
 
 //
@@ -158,15 +163,19 @@ void WebSocketConnect() {
      printDebugLog("  ok: AT");
   }else{
     printDebugErr("  fatal error: check baud rate");
+    errorFlg = 1;
+    return;
   }
   
+  
   printDebugLog("reset ESP8266...");
-  Serial.println(F("AT+RST"));
+  Serial.println(F("\r\nAT+RST"));
   if(WaitFor("ready\r\n")){
      printDebugLog("  ok: reseted");
   }else{
-    printDebugErr("  error: can't reset ESP8266");
-    errorFlg = 0;
+    printDebugErr("  error: can't reset ESP8266, check baud rate, reset arduino");
+    errorFlg = 1;
+    return;
   }
 
   printDebugLog("checking ESP8266 mode...");
@@ -175,6 +184,7 @@ void WebSocketConnect() {
      printDebugLog("  ok: station mode");
   }else{
     printDebugErr("error: not station mode");
+    //error but ignore
   }
 
   printDebugLog("connecting to WiFi...");
@@ -187,6 +197,8 @@ void WebSocketConnect() {
      printDebugLog("  ok: connected");
   }else{
     printDebugErr("  error: can't connect WiFi");
+    errorFlg = 1;
+    return;
   }
 
   printDebugLog("opening TCP connection...");
@@ -198,14 +210,23 @@ void WebSocketConnect() {
      printDebugLog("  ok: opened");
   }else{
     printDebugErr("  error: can't open TCP connection");
+    errorFlg = 1;
+    return;
   }
 
   char key_base64[] = "dGhlIHNhbXBsZSBub25jZQ=="; //not random at this time
 
   printDebugLog("opening Websocket connection...");
   Serial.print(F("AT+CIPSEND="));
-  Serial.println(StringLength(WS_PATH)+StringLength(jumpwire_io_token)+StringLength(jumpwire_io_project)+StringLength(WS_SERVER) + StringLength(WS_PORT) + 139 +21); //固定部分の文字長は改行含めて149文字
-  WaitFor("> "); //wait for prompt
+  Serial.println(StringLength(WS_PATH)+StringLength(jumpwire_io_token)+StringLength(jumpwire_io_project)+StringLength(jumpwire_io_node)+StringLength(WS_SERVER) + StringLength(WS_PORT) + 139 +25); //固定部分の文字長は改行含めて149文字
+
+  if(WaitFor("> ")){//wait for prompt
+  }else{
+    printDebugErr("  error: can't send tcp");
+    errorFlg = 1;
+    return;
+  }
+
 
   Serial.print(F("GET "));
   Serial.print(WS_PATH);
@@ -221,22 +242,29 @@ void WebSocketConnect() {
   Serial.print(jumpwire_io_token);
   Serial.print(F("; p=")); //4
   Serial.print(jumpwire_io_project);
+  Serial.print(F("; n=")); //4
+  Serial.print(jumpwire_io_node);
   Serial.print(F("\r\n")); //2
   Serial.print(F("\r\n"));
   
-  if(WaitFor("s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")){
+  // Read serial fast, ignore 470 chars to avoid serial buffer overflow
+  int i=0;
+  while(1){
+    if(Serial.available()){
+      Serial.read();
+      i++;
+      if(i==470){
+        break;
+      }
+    }
+  }
+  
+  if(WaitFor("authorized\"]")){  //s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
      printDebugLog("  ok: opened");
   }else{
-    printDebugErr("  error: can't open Websocket");
-  }
-  /*
-  printDebugLog("Login to jumpwire.io");
-  if(WaitFor("authorized\"]")){
-     printDebugLog("  ok: welcome!");
-  }else{
-    printDebugErr("  error: can't login, check token");
-  }
-  */
+    printDebugErr("  error: can't open Websocket. check token.");
+    //error but ignore
+  }  
   
 errorFlg = 0;  //ignore err when connecting
 }
@@ -379,9 +407,11 @@ void ProcessMessage(char *str, byte len) {
   //B10000001 テキストパケットかつ B0*******マスクなしならテキストフレーム
   //(byte)はstr[i]をバイト型にキャストしている
   if (((byte)str[0] == B10000001) && ((((byte)str[1])&B10000000) == B00000000)) {
-
+    //printDebugLogNoln("str="); //debug
+    //printDebugLog(str); //debug
     //ペイロードが１文字かつ3ならpongパケット
     if (((byte)str[1] == B00000001) && (str[2] == '3')) {
+      printDebugLog("  ok: received pong");
       //上記にあてはまらず、ペイロードが42から始まっていたらメッセージ
     } else if ((str[2] == '4') && (str[3] == '2')) {
       byte k = 4;
@@ -440,7 +470,6 @@ void WebSocketSendText(char *str) {
   WebSocketFrame[1] = B10000000; //MASK(1:マスクあり)
   WebSocketFrame[1] = WebSocketFrame[1] + len; //Payload長を足す
 
-
   //マスクを用意する
   WebSocketFrame[2] = random(-128, 128); //MASKにランダムな値を入れる
   WebSocketFrame[3] = random(-128, 128); //MASKにランダムな値を入れる
@@ -467,7 +496,12 @@ void WebSocketSendText(char *str) {
 void TcpSend(char *str, byte len) {
   Serial.print(F("AT+CIPSEND="));
   Serial.println(len);
-  WaitFor("> "); //応答が返ってくるまで待つ
+  if(WaitFor("> ")){//wait for prompt
+  }else{
+    printDebugErr("error: can't send tcp");
+    errorFlg = 1;
+    return;
+  }
   //64バイト(Serialの送信バッファサイズ)ごとに分けて長い文字列に対応
   int i;
   for (i = 0; i < len; i++) {
@@ -505,6 +539,7 @@ int WaitFor(char *str) {
       for (i = 0; i < len; i++) {
         if (buf[i] != str[i]) { //i文字目同士が一致していない場合
           mode = 0; //１文字でも不一致があれば0に戻す
+          break;
         }
       }
       if (mode == 1) {
