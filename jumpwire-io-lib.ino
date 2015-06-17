@@ -518,7 +518,9 @@ void TcpSend(char *str, byte len) {
   Serial.println(len);
   if(WaitFor("> ")){//wait for prompt
   }else{
-    printDebugErr("error: can't send tcp");
+    #if DEBUG_FLG
+      printDebugErr("error: can't send tcp");
+    #endif
     errorFlg = 1;
     return;
   }
