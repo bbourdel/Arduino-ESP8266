@@ -8,7 +8,7 @@
 //  For debugging
 //
 
-#define DEBUG_FLG 1 //1: Output debug log
+#define DEBUG_FLG 0 //1: Output debug log
                     //0: Don't output debug log (Fast)
 
 #if DEBUG_FLG //DEBUG_FLG: 1
