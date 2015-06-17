@@ -1,5 +1,5 @@
 
-//  jumpwire.io client library version 0.0.1
+//  jumpwire.io client library version 0.0.2
 //  (c)2015 IPComSys Co., Ltd.
 //  The MIT License (MIT)
 //  http://opensource.org/licenses/mit-license.php
@@ -8,7 +8,7 @@
 //  For debugging
 //
 
-#define DEBUG_FLG 0 //1: Output debug log
+#define DEBUG_FLG 1 //1: Output debug log
                     //0: Don't output debug log (Fast)
 
 #if DEBUG_FLG //DEBUG_FLG: 1
@@ -26,11 +26,11 @@
     debug_buf[DEBUG_BUF_LEN-1] = 0;
   }
   
-  void printDebugLog(char *DebugLog){
+  void printDebugLogln(char *DebugLog){
     debugSerial.println(DebugLog);
   }
   
-  void printDebugLogNoln(char *DebugLog){
+  void printDebugLog(char *DebugLog){
     debugSerial.print(DebugLog);
   }
   
@@ -41,6 +41,10 @@
     debugSerial.println(" <--log");
   }
   
+  void printDebugLogStringln(String DebugLog){
+    debugSerial.println(DebugLog);
+  }
+  
   void putDebug_buf(char letter){
     int i = 0;
     for(i=0;i<DEBUG_BUF_LEN-1;i++){
@@ -48,29 +52,6 @@
     }
     debug_buf[DEBUG_BUF_LEN-1] = letter;
   }
-
-#else  //DEBUG_FLG: 0
-  
-  void initDebugSerial(){
-    //do nothing
-  }
-  
-  void printDebugLog(char *DebugLog){
-    //do nothing
-  }
-  
-  void printDebugLogNoln(char *DebugLog){
-    //do nothing
-  }
-  
-  void printDebugErr(char *DebugLog){
-    //do nothing
-  }
-  
-  void putDebug_buf(char letter){
-    //do nothing
-  }
-
 #endif
 
 //
@@ -81,7 +62,7 @@
 #define WS_SERVER         "socket.jumpwire.io"
 #define WS_PORT           "80"
 #define WS_PATH           "/socket.io/?transport=websocket"
-#define jumpwire_io_node  "__AE0.0.1"
+#define jumpwire_io_node  "__AE0.0.2"
 #define PING_INTERVAL     55000 //socket.ioへpingを送る間隔ミリ秒数
 #define MAX_MESSAGE_SIZE  100   //処理するメッセージの最大サイズ(MAX254)
 #define WAITING_TIMEOUT   10000 //ESPの応答を待つミリ秒数
@@ -94,13 +75,16 @@ unsigned int  MessageSize          = 0; //受信パケットサイズ格納用�
 char          MessageBuffer[MAX_MESSAGE_SIZE + 1]; //受信メッセージ格納用バッファ
 byte          MessageCursor        = 0;  //何文字目を受信しているかのカーソル
 
+
 //
 //  jumpwire.io API's
 //
 
 void jumpwireIoSetup() {
-  initDebugSerial();
-  printDebugLog("\nstart jumpwire.io");
+  #if DEBUG_FLG  
+    initDebugSerial();
+    printDebugLogln("\nstart jumpwire.io");
+  #endif
   randomSeed(analogRead(Analog_Unused_pin)); //for websocket mask
   Serial.begin(your_ESP8266_baud_rate);
   WebSocketConnect();
@@ -108,36 +92,49 @@ void jumpwireIoSetup() {
 }
 
 void jumpwireIoLoop() {
-  while (Serial.available()) {
-    char a = ProcessReceivedCharacter();//文字列をチェック
-  }
-  if (millis() > pingtimer + PING_INTERVAL) {  
-    //受信待ち状態でタイマーが起動した場合の対策
-    printDebugLog("Sending ping...");
-    MessageReceivingMode = 0;//モード0に戻る
-    MessageSize = 0; //メッセージサイズをリセット
-    MessageCursor = 0;//メッセージカーソルをリセット   
-    WebSocketSendText("2"); //socket.ioのPing (Websocket的にはテキスト)
-    pingtimer = millis(); //タスク終了時刻をセット
-  }
-  if (errorFlg == 1) {
-    printDebugErr("errorFlg == 1");
-    WebSocketConnect();  //recconect
-    pingtimer = millis(); //ループ1週目タスクも完了ししたらPingタイマーリセット
-    errorFlg = 0;
-  }
+    if (Serial.available()) {
+      char a = ProcessReceivedCharacter();//文字列をチェック
+    }
+
+    if (millis() > pingtimer + PING_INTERVAL) {  
+      //受信待ち状態でタイマーが起動した場合の対策
+      #if DEBUG_FLG
+        printDebugLogln("Sending ping...");
+      #endif
+      MessageReceivingMode = 0;//モード0に戻る
+      MessageSize = 0; //メッセージサイズをリセット
+      MessageCursor = 0;//メッセージカーソルをリセット   
+      WebSocketSendText("2"); //socket.ioのPing (Websocket的にはテキスト)
+      pingtimer = millis(); //タスク終了時刻をセット
+    }
+  
+    if (errorFlg == 1) {
+      #if DEBUG_FLG
+        printDebugErr("errorFlg == 1");
+      #endif
+      WebSocketConnect();  //recconect
+      pingtimer = millis(); //ループ1週目タスクも完了ししたらPingタイマーリセット
+      errorFlg = 0;
+    }
 }
 
+//
+// Throw
+//
+
 void Throw(char key, float value){
-  String string = "";
-  string += "Throw key: ";
-  string += key;
-  string += " value: ";
-  string += value;
-  char buf2[string.length()+1];
-  string.toCharArray(buf2,string.length()+1);
-  printDebugLog(buf2);  
+  String string;
+  string.reserve(50); //to avoid fragmentation
   
+  #if DEBUG_FLG
+    string += "Throw key: ";
+    string += key;
+    string += " value: ";
+    string += value;
+    char buf2[string.length()+1];
+    string.toCharArray(buf2,string.length()+1);
+    printDebugLogln(buf2);
+  #endif
   
   string ="42[\"f\",[\"";
   string += key;
@@ -147,7 +144,6 @@ void Throw(char key, float value){
   char buf[string.length()+1];
   string.toCharArray(buf,string.length()+1);
   WebSocketSendText(buf);
-  
 
 }
 
@@ -156,73 +152,103 @@ void Throw(char key, float value){
 //
 
 void WebSocketConnect() {
-  
-  printDebugLog("try ESP8266 AT...");
+  #if DEBUG_FLG
+    printDebugLogln("try ESP8266 AT...");
+  #endif
   Serial.println(F("AT"));
   if(WaitFor("OK\r\n")){
-     printDebugLog("  ok: AT");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: AT");
+    #endif
   }else{
-    printDebugErr("  fatal error: check baud rate");
+    #if DEBUG_FLG
+      printDebugErr("  fatal error: check baud rate");
+    #endif
     errorFlg = 1;
     return;
   }
   
-  
-  printDebugLog("reset ESP8266...");
+  #if DEBUG_FLG
+    printDebugLogln("reset ESP8266...");
+  #endif
   Serial.println(F("\r\nAT+RST"));
   if(WaitFor("ready\r\n")){
-     printDebugLog("  ok: reseted");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: reseted");
+    #endif
   }else{
-    printDebugErr("  error: can't reset ESP8266, check baud rate, reset arduino");
+    #if DEBUG_FLG
+      printDebugErr("  error: can't reset ESP8266, check baud rate, reset arduino");
+    #endif
     errorFlg = 1;
     return;
   }
-
-  printDebugLog("checking ESP8266 mode...");
+  
+  #if DEBUG_FLG
+    printDebugLogln("checking ESP8266 mode...");
+  #endif
   Serial.println(F("AT+CWMODE=1"));
   if(WaitFor("OK\r\n")){
-     printDebugLog("  ok: station mode");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: station mode");
+    #endif
   }else{
-    printDebugErr("error: not station mode");
+    #if DEBUG_FLG
+      printDebugErr("error: not station mode");
+    #endif
     //error but ignore
   }
-
-  printDebugLog("connecting to WiFi...");
+  #if DEBUG_FLG
+    printDebugLogln("connecting to WiFi...");
+  #endif
   Serial.print(F("AT+CWJAP=\""));
   Serial.print(your_WiFi_SSID);
   Serial.print(F("\",\""));
   Serial.print(your_WiFi_password);
   Serial.println(F("\""));
   if(WaitFor("OK\r\n")){
-     printDebugLog("  ok: connected");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: connected");
+    #endif
   }else{
-    printDebugErr("  error: can't connect WiFi");
+    #if DEBUG_FLG
+      printDebugErr("  error: can't connect WiFi");
+    #endif
     errorFlg = 1;
     return;
   }
-
-  printDebugLog("opening TCP connection...");
+  #if DEBUG_FLG
+    printDebugLogln("opening TCP connection...");
+  #endif
   Serial.print(F("AT+CIPSTART=\"TCP\",\""));
   Serial.print(WS_SERVER);
   Serial.print(F("\","));
   Serial.println(WS_PORT);
   if(WaitFor("OK\r\n")){
-     printDebugLog("  ok: opened");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: opened");
+    #endif
   }else{
-    printDebugErr("  error: can't open TCP connection");
+    #if DEBUG_FLG
+      printDebugErr("  error: can't open TCP connection");
+    #endif
     errorFlg = 1;
     return;
   }
 
   char key_base64[] = "dGhlIHNhbXBsZSBub25jZQ=="; //not random at this time
-
-  printDebugLog("opening Websocket connection...");
+  
+  #if DEBUG_FLG
+    printDebugLogln("opening Websocket connection...");
+  #endif
   Serial.print(F("AT+CIPSEND="));
   Serial.println(StringLength(WS_PATH)+StringLength(jumpwire_io_token)+StringLength(jumpwire_io_project)+StringLength(jumpwire_io_node)+StringLength(WS_SERVER) + StringLength(WS_PORT) + 139 +25); //固定部分の文字長は改行含めて149文字
 
   if(WaitFor("> ")){//wait for prompt
   }else{
-    printDebugErr("  error: can't send tcp");
+    #if DEBUG_FLG
+      printDebugErr("  error: can't send tcp");
+    #endif
     errorFlg = 1;
     return;
   }
@@ -260,77 +286,17 @@ void WebSocketConnect() {
   }
   
   if(WaitFor("authorized\"]")){  //s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
-     printDebugLog("  ok: opened");
+    #if DEBUG_FLG
+      printDebugLogln("  ok: opened"); 
+    #endif
   }else{
-    printDebugErr("  error: can't open Websocket. check token.");
+    #if DEBUG_FLG
+      printDebugErr("  error: can't open Websocket. check token.");
+    #endif
     //error but ignore
   }  
   
 errorFlg = 0;  //ignore err when connecting
-}
-
-//
-// socket.io
-//
-
-void OnEventReceived(char *str, byte len) {
-
-  //受信したイベントをパースして、コールバック関数を呼び出してあげる
-
-  //まずはイベントが ["f",[" かどうかをチェック
-  if ((str[0] == '[')
-      && (str[1] == '"')
-      && (str[2] == 'f')
-      && (str[3] == '"')
-      && (str[4] == ',')
-      && (str[5] == '[')
-      && (str[6] == '"')) {
-
-  //keyをパース    
-  char key = str[7];
-  
-  //文字列か数値かnullかをチェック
-  switch(str[10]){
-    case '"':   //"なら文字列
-      //Serial1.println(F("パース結果：文字列"));//debug
-      break;
-    case 'n':   //"ならnull
-      //Serial1.println(F("パース結果：null"));//debug
-      break;
-    default:
-      if((('0'<=str[10])&&(str[10]<='9'))||(str[10]=='.')){ //ASCIIコードが0〜9の間or'.'
-        //Serial1.println(F("パース結果：数値"));//debug
-        
-        //valueをパース
-        float value=0;
-        //文字列表記をfloat型に変換
-        byte i=10;
-        for (i=10;(('0'<=str[i])&&(str[i]<='9'));i++){ //str[i]が数字で有る限りループ
-           value = value * 10 + str[i] - 48;  //Asciiコード48を引いて数値に直す
-        }
-        if(str[i]=='.'){
-          byte j=1;
-          for (j=1;(('0'<=str[i+j])&&(str[i+j]<='9'));j++){
-            value = value + (str[i+j] - 48) / pow(10,j);  //Asciiコード48を引いて数値に直す
-          }
-        }
-        Catch(key, value); //コールバックを呼び出し
-        
-        String message = "";
-        message += "Catch key: ";
-        message += key;
-        message += " value: ";
-        message += value;
-        char buf[message.length()+1];
-        message.toCharArray(buf,message.length()+1);
-        printDebugLog(buf); //debug
-
-      }else{
-        //Serial1.println(F("パースエラー")); //それ以外はエラー
-      }
-  }
-  }
-
 }
 
 
@@ -340,7 +306,10 @@ void OnEventReceived(char *str, byte len) {
 
 char ProcessReceivedCharacter() {
   char a = Serial.read(); //文字を読み込み
-  putDebug_buf(a);//デバッグバッファに文字格納
+  #if DEBUG_FLG
+    putDebug_buf(a);//デバッグバッファに文字格納
+  #endif
+      
 
   //１文字ずらしてバッファに受信文字を格納
   MessageCheckBuffer[0] = MessageCheckBuffer[1];
@@ -399,46 +368,97 @@ char ProcessReceivedCharacter() {
 
 }
 
-//メッセージを処理する関数
+//
+// parse tcp frame
+//   
+
 void ProcessMessage(char *str, byte len) {
-
-  //初めの2文字をチェック
-
-  //B10000001 テキストパケットかつ B0*******マスクなしならテキストフレーム
-  //(byte)はstr[i]をバイト型にキャストしている
-  if (((byte)str[0] == B10000001) && ((((byte)str[1])&B10000000) == B00000000)) {
-    //printDebugLogNoln("str="); //debug
-    //printDebugLog(str); //debug
-    //ペイロードが１文字かつ3ならpongパケット
-    if (((byte)str[1] == B00000001) && (str[2] == '3')) {
-      printDebugLog("  ok: received pong");
-      //上記にあてはまらず、ペイロードが42から始まっていたらメッセージ
-    } else if ((str[2] == '4') && (str[3] == '2')) {
-      byte k = 4;
-      byte startchar = 4;
-      //printDebugLogNoln("/");
-      for (k=4;k<len;k++){
-        if( ((byte)str[k] == B10000001) || (k == len-1) ){
-          
-          //printDebugLogNoln("|");
-
-          //startcharからk−１までを送信
-          byte j = startchar;
-          char EventString[k - startchar + 1]; //最後の+1はnull用
-          for (j = startchar; j < k-1; j++) {
-            EventString[j - startchar] = str[j];
-          }
-          EventString[k - startchar] = 0; //最後の1文字はnull
-          //printDebugLog(EventString);
-          OnEventReceived(EventString, k - startchar);
-
-          startchar = k+4;
-        }
-      }
-      
-
+  
+  //str to String obj
+  String message;
+  message.reserve(len); //to avoid fragmentation
+  byte l=0;
+  for (l=0;l<len;l++){
+    message+=str[l];
+  }
+  
+  /*
+  #if DEBUG_FLG
+      printDebugLogStringln(message); //debug
+  #endif
+  */
+    
+  //Split tcp payload to websocket frame
+  int cursor=1;
+  byte from;
+  byte to;
+  while(cursor>0){
+    from = cursor-1;
+    cursor = message.indexOf(B10000001,cursor);
+    if(cursor==-1){
+      //One websocket frame
+      to=len; //to the end of message
+    }else{
+      //more than one websocket frame
+      to=cursor;
+      cursor++;
     }
-  } else {
+    parseWebsocket(message.substring(from,to));
+  }
+  
+}
+
+//
+// parse websocket frame
+//
+
+void  parseWebsocket(String frame){
+  //テキスト型のwebsocketフレーム以外は無視
+  if (((byte)frame.charAt(0)==B10000001)
+    &&((((byte)frame.charAt(1))&B10000000) == B00000000)){
+    //B10000001 テキストパケットかつ B0*******マスクなしならテキストフレーム
+    parseSocketIo(frame.substring(2));
+  }else{
+  }
+
+}
+
+
+//
+// parse socket.io frame
+//
+
+void parseSocketIo(String frame){
+  if(frame.charAt(0)=='3'){
+    #if DEBUG_FLG
+      printDebugLogln("  ok: received pong");
+    #endif
+  }else if((frame.charAt(0)=='4')&&(frame.charAt(1)=='2')){
+    //Socket.ioのペイロードのみ次の関数へ渡す
+    frame.remove(0,2);
+    parseJumpwireIo(frame);
+  }else{
+  }
+}
+
+//
+// parse jumpwire.io frame
+//
+
+void parseJumpwireIo(String frame){
+
+  if(frame.charAt(2)=='f'){ //is f (float) frame?
+    #if DEBUG_FLG
+      String debugMsg = "Catch key: ";
+      debugMsg +=frame.charAt(7);
+      debugMsg +=" value: ";
+      debugMsg +=frame.substring(10,frame.length()-2).toFloat();
+      printDebugLogStringln(debugMsg);
+    #endif
+    //call Catch function
+    Catch(frame.charAt(7),
+          frame.substring(10,frame.length()-2).toFloat());
+  }else{
   }
 }
 
@@ -518,7 +538,11 @@ void TcpSend(char *str, byte len) {
 // utilities
 //
 
-//引数で指定した文字列が帰ってくるまで待つ関数
+
+//
+//  Wait for str / blocking
+//
+
 int WaitFor(char *str) {
   unsigned long timeofstart = millis(); //タイムアウト用のタイマーをセット
   byte len = StringLength(str); //strはポインタ
@@ -527,7 +551,9 @@ int WaitFor(char *str) {
   while (1) { //所定の条件に当てはまるまでループし続ける
     if (Serial.available()) { //文字を受信した場合
       char a = Serial.read(); //文字を読み込み
-      putDebug_buf(a);//デバッグバッファに文字格納
+      #if DEBUG_FLG
+        putDebug_buf(a);//デバッグバッファに文字格納
+      #endif
       //受信した文字をバッファの最後に入れる
       byte i;
       for (i = 0; i < len; i++) {
@@ -547,11 +573,13 @@ int WaitFor(char *str) {
       }
     }
     //タイムアウトを設定
-    if ((millis() - timeofstart) > WAITING_TIMEOUT) { //タイムアウト  
-      printDebugLog("timeout: when waiting for");
-      printDebugLogNoln("-->");
-      printDebugLogNoln(str);
-      printDebugLog("<--");
+    if ((millis() - timeofstart) > WAITING_TIMEOUT) { //タイムアウト 
+      #if DEBUG_FLG 
+        printDebugLogln("timeout: when waiting for");
+        printDebugLog("-->");
+        printDebugLog(str);
+        printDebugLogln("<--");
+      #endif
       errorFlg = 1; //エラーフラグを立てる
       //timer = millis(); //接続が完了したらタイマーリセット
       pingtimer = millis(); //接続が完了したらPingタイマーリセット
